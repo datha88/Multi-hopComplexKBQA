@@ -3,35 +3,36 @@ from SPARQLWrapper import SPARQLWrapper, JSON
 import re
 from collections import defaultdict
 
-const2rel = {'largest': """ns:location.location.area ns:topic_server.population_number""",
-             'biggest': """ns:location.location.area ns:topic_server.population_number""",
-             'most': """ns:location.location.area ns:topic_server.population_number ns:military.casualties.lower_estimate
-               ns:location.religion_percentage.percentage ns:geography.river.discharge ns:aviation.airport.number_of_runways""",
-             'major': """ns:location.location.area ns:topic_server.population_number ns:military.casualties.lower_estimate
-               ns:location.religion_percentage.percentage ns:geography.river.discharge ns:aviation.airport.number_of_runways""",
-             'predominant': """ns:location.religion_percentage.percentage""",
-             'warmest': """ns:travel.travel_destination_monthly_climate.average_max_temp_c""",
-             'tallest': """ns:architecture.structure.height_meters"""}
-special1hoprel = set(["ns:base.aareas.schema.administrative_area.short_name",
-                      "ns:base.schemastaging.context_name.official_name",
-                      "ns:type.object.name",
-                      "ns:base.schemastaging.context_name.nickname"])
-
-SPARQLPATH = "your/path/to/database"
+const2rel = {'largest': """fb:location.location.area fb:topic_server.population_number""",
+             'biggest': """fb:location.location.area fb:topic_server.population_number""",
+             'most': """fb:location.location.area fb:topic_server.population_number fb:military.casualties.lower_estimate
+               fb:location.religion_percentage.percentage fb:geography.river.discharge fb:aviation.airport.number_of_runways""",
+             'major': """fb:location.location.area fb:topic_server.population_number fb:military.casualties.lower_estimate
+               fb:location.religion_percentage.percentage fb:geography.river.discharge fb:aviation.airport.number_of_runways""",
+             'predominant': """fb:location.religion_percentage.percentage""",
+             'warmest': """fb:travel.travel_destination_monthly_climate.average_max_temp_c""",
+             'tallest': """fb:architecture.structure.height_meters"""}
+special1hoprel = set(["fb:base.aareas.schema.administrative_area.short_name",
+                      "fb:base.schemastaging.context_name.official_name",
+                      "fb:type.object.name",
+                      "fb:base.schemastaging.context_name.nickname"])
+#SPARQLPATH = "http://phoenix.ims.uni-stuttgart.de:8890/sparql/"
+SPARQLPATH = "http://localhost:8890/sparql/"
 
 def test():
     try:
         sparql = SPARQLWrapper(SPARQLPATH) #    PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
-        sparql_txt = """PREFIX ns: <http://rdf.freebase.com/ns/>
-    SELECT distinct ?name3
+        #PREFIX fb:<fb2m:>
+        sparql_txt = """PREFIX fb:<fb2m:>
+    SELECT distinct ?name3 
     WHERE {
-    ns:m.0k2kfpc ns:award.award_nominated_work.award_nominations ?e1.
-    ?e1 ns:award.award_nomination.award_nominee ns:m.02pbp9.
-    ns:m.02pbp9 ns:people.person.spouse_s ?e2.
-    ?e2 ns:people.marriage.spouse ?e3.
-    ?e2 ns:people.marriage.from ?e4.
-    ?e3 ns:type.object.name ?name3
-    MINUS{?e2 ns:type.object.name ?name2}
+    fb:m.0k2kfpc fb:award.award_nominated_work.award_nominations ?e1.
+    ?e1 fb:award.award_nomination.award_nominee fb:m.02pbp9.
+    fb:m.02pbp9 fb:people.person.spouse_s ?e2.
+    ?e2 fb:people.marriage.spouse ?e3.
+    ?e2 fb:people.marriage.from ?e4.
+    ?e3 fb:type.object.name ?name3
+    MINUS{?e2 fb:type.object.name ?name2}
     }
         """
         #print(sparql_txt)
@@ -42,14 +43,14 @@ def test():
     except:
         print('Your database is not installed properly !!!')
 
-#?c ns:common.topic.notable_types ns:m.0k2kfpc .
+#?c fb:common.topic.notable_types fb:m.0k2kfpc .
 
-# ns:m.0k2kfpc ?r1 ?k.
+# fb:m.0k2kfpc ?r1 ?k.
 # ?k ?r2 ?c .
-# ?c ns:people.person.spouse_s ?y .
-# ?y ns:people.marriage.spouse ?x .
-# ?y ns:people.marriage.type_of_union ns:m.04ztj .
-# ?y ns:people.marriage.to ?sk0 .
+# ?c fb:people.person.spouse_s ?y .
+# ?y fb:people.marriage.spouse ?x .
+# ?y fb:people.marriage.type_of_union fb:m.04ztj .
+# ?y fb:people.marriage.to ?sk0 .
 # ?c ?r ?x2 .
 def test_sk0(sparql_txt):
     sparql = SPARQLWrapper(SPARQLPATH) #    PREFIX xsd:<http://www.w3.org/2001/XMLSchema#>
@@ -70,7 +71,7 @@ def test_sk0(sparql_txt):
 def SQL_name2entity(name):
     entity = set()
     sparql = SPARQLWrapper(SPARQLPATH)
-    sparql.setQuery("""PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT ?e WHERE {?e ?r "%s"@en}
+    sparql.setQuery("""PREFIX fb:<fb2m:>\nSELECT ?e WHERE {?e ?r "%s"@en}
     """ %(name))
     sparql.setReturnFormat(JSON)
     try:
@@ -84,9 +85,9 @@ def SQL_name2entity(name):
 
 def SQL_name2type(names):
     entity = set()
-    query = '\n'.join(["""?e%s ns:type.object.name "%s"@en. \n?e%s ns:common.topic.notable_types ?t.""" %(name_idx, name, name_idx) for name_idx, name in enumerate(names)])
+    query = '\n'.join(["""?e%s fb:type.object.name "%s"@en. \n?e%s fb:common.topic.notable_types ?t.""" %(name_idx, name, name_idx) for name_idx, name in enumerate(names)])
     sparql = SPARQLWrapper(SPARQLPATH)
-    sparql_txt = """PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT DISTINCT ?t WHERE {%s}""" %(query)
+    sparql_txt = """PREFIX fb:<fb2m:>\nSELECT DISTINCT ?t WHERE {%s}""" %(query)
     sparql.setQuery(sparql_txt)
     sparql.setReturnFormat(JSON)
     try:
@@ -101,9 +102,9 @@ def SQL_name2type(names):
 def SQL_entity2name(e):
     if not re.search('^[mg]\.', e): return e
     sparql = SPARQLWrapper(SPARQLPATH)
-    sparql.setQuery("""PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT ?t WHERE {ns:%s ns:type.object.name ?t.}
+    sparql.setQuery("""PREFIX fb:<fb2m:>\nSELECT ?t WHERE {fb:%s fb:type.object.name ?t.}
     """ %(e))
-    # ?x8 ns:type.object.type ?x9 ?x8 ns:type.object.name ?x9.
+    # ?x8 fb:type.object.type ?x9 ?x8 fb:type.object.name ?x9.
     sparql.setReturnFormat(JSON)
     try:
         results = sparql.query().convert()
@@ -114,7 +115,7 @@ def SQL_entity2name(e):
 
 def SQL_entity2type(e):
     sparql = SPARQLWrapper(SPARQLPATH)
-    sparql.setQuery("""PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT ?t WHERE {ns:%s ns:common.topic.notable_types ?t.}
+    sparql.setQuery("""PREFIX fb:<fb2m:>\nSELECT ?t WHERE {fb:%s fb:common.topic.notable_types ?t.}
     """ %(e))
     sparql.setReturnFormat(JSON)
     try:
@@ -127,11 +128,11 @@ def SQL_entity2type(e):
 def SQL_hr2t(h, r):
     ts = set()
     if re.search('^[mg]\.', h):
-        slot = 'ns:%s ns:%s ?t' %(h, r)
+        slot = 'fb:%s fb:%s ?t' %(h, r)
     elif re.search('^[mg]\.', r):
-        slot = '?t ns:%s ns:%s' %(h, r)
+        slot = '?t fb:%s fb:%s' %(h, r)
     sparql = SPARQLWrapper(SPARQLPATH)
-    sparql.setQuery("""PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT ?t WHERE {%s}limit 30
+    sparql.setQuery("""PREFIX fb:<fb2m:>\nSELECT ?t WHERE {%s}limit 30
     """ %slot)
     sparql.setReturnFormat(JSON)
     try:
@@ -147,7 +148,7 @@ def SQL_e0r0r1_e1(p):
     e0, r0, r1 = p
     ts = set()
     sparql = SPARQLWrapper(SPARQLPATH)
-    sparql.setQuery("""PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT ?t1, ?t2 WHERE {ns:%s ns:%s ?t1.\n?t1 ns:%s ?t2}limit 100
+    sparql.setQuery("""PREFIX fb:<fb2m:>\nSELECT ?t1, ?t2 WHERE {fb:%s fb:%s ?t1.\n?t1 fb:%s ?t2}limit 100
     """ %(e0, r0, r1))
     sparql.setReturnFormat(JSON)
     try:
@@ -166,7 +167,7 @@ def SQL_e0r0r1e1_e2(p):
     e0, r0, r1, e1 = p
     ts = set()
     sparql = SPARQLWrapper(SPARQLPATH)
-    sparql.setQuery("""PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT ?t1 WHERE {ns:%s ns:%s ?t1.\n?t1 ns:%s ns:%s}limit 100
+    sparql.setQuery("""PREFIX fb:<fb2m:>\nSELECT ?t1 WHERE {fb:%s fb:%s ?t1.\n?t1 fb:%s fb:%s}limit 100
     """ %(e0, r0, r1, e1))
     sparql.setReturnFormat(JSON)
     try:
@@ -184,7 +185,7 @@ def SQL_e0r0r1r2e2_e3(p):
     e0, r0, r1, r2, e2= p
     ts = set()
     sparql = SPARQLWrapper(SPARQLPATH)
-    sparql.setQuery("""PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT ?t1, ?t2 WHERE {ns:%s ns:%s ?t1.\n?t1 ns:%s ?t2.\n?t2 ns:%s ns:%s}limit 100
+    sparql.setQuery("""PREFIX fb:<fb2m:>\nSELECT ?t1, ?t2 WHERE {fb:%s fb:%s ?t1.\n?t1 fb:%s ?t2.\n?t2 fb:%s fb:%s}limit 100
     """ %(e0, r0, r1, r2, e2))
     sparql.setReturnFormat(JSON)
     try:
@@ -204,7 +205,7 @@ def check_dummyentity(p):
     e0, r0, r1 = p
     ts = False
     sparql = SPARQLWrapper(SPARQLPATH)
-    sparql.setQuery("""PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT ?t1, ?t2 WHERE {ns:%s ns:%s ?t1.\n?t1 ns:%s ?t2.\nMINUS {?t1 ns:type.object.name ?name.}.}LIMIT 10
+    sparql.setQuery("""PREFIX fb:<fb2m:>\nSELECT ?t1, ?t2 WHERE {fb:%s fb:%s ?t1.\n?t1 fb:%s ?t2.\nMINUS {?t1 fb:type.object.name ?name.}.}LIMIT 10
     """ %(e0, r0, r1))
     sparql.setReturnFormat(JSON)
     try:
@@ -222,7 +223,7 @@ def form_trips(p_tokens):
         trip = ()
         if len(p_token) > 3: p_token = p_token[1:]
         for p_idx, e in enumerate(p_token):
-            e = 'ns:%s' %e if (re.search('^[mg]\.', e) or len(e.split('.')) > 2) else "'%s'^^xsd:date" %e if (e.isdigit() and int(e) < 2100 or re.search('\d-\d', e)) else e
+            e = 'fb:%s' %e if (re.search('^[mg]\.', e) or len(e.split('.')) > 2) else "'%s'^^xsd:date" %e if (e.isdigit() and int(e) < 2100 or re.search('\d-\d', e)) else e
             if re.search('^\?e', e): t_idx = int(re.findall('\d+', e)[0])
             if re.search('^\?d', e): d_idx = int(re.findall('\d+', e)[0])
             trip += (e, )
@@ -247,7 +248,7 @@ def SQL_query(p):
     trips = '.\n'.join(query) if t_idx == 0 else '.\n'.join(trips)
     retu = '?e%s' %(t_idx)
     const = "FILTER (?e%s!=%s)\nFILTER (!isLiteral(?e%s) OR lang(?e%s) = '' OR langMatches(lang(?e%s), 'en'))" %((t_idx, topic)+(t_idx, )*3)
-    sparql_txt = """PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT %s WHERE {%s\n%s}""" %(retu, const, trips) # Q: the order of the query matters ?!
+    sparql_txt = """PREFIX fb:<fb2m:>\nSELECT %s WHERE {%s\n%s}""" %(retu, const, trips) # Q: the order of the query matters ?!
     print(sparql_txt)
     sparql = SPARQLWrapper(SPARQLPATH)
     sparql.setQuery(sparql_txt)
@@ -266,27 +267,27 @@ def SQL_query(p):
 def SQL_1hop(p, QUERY=None):
     kbs, sparql_txts = defaultdict(set), set()
     trips, t_idx, _ = form_trips(p)
-    topic = re.findall('^ns\:[mg]\.[^ ]+', trips[0])[0]
+    topic = re.findall('^fb\:[mg]\.[^ ]+', trips[0])[0]
     query = (' '.join(['%s' %topic, '?r', '?e%s' %(t_idx+1)]), ) if t_idx == 0 else (' '.join(['?e%s' %t_idx, '?r', '?e%s' %(t_idx+1)]), )
     trips = '.\n'.join(query) if t_idx == 0 else '.\n'.join(trips + query)
     retu = ', '.join(['?r', '?e%s' %(t_idx+1)])
     const = "FILTER (?e%s!=%s)\nFILTER (!isLiteral(?e%s) OR lang(?e%s) = '' OR langMatches(lang(?e%s), 'en'))" %((t_idx+1, topic)+(t_idx+1, )*3)
-    for const1_idx, const1 in enumerate(["?e%s ns:type.object.name ?name." %(t_idx+1), "FILTER (datatype(?e%s) in (xsd:date, xsd:gYear))" %(t_idx+1), "VALUES ?r {%s}" %(' '.join(special1hoprel))]): #
+    for const1_idx, const1 in enumerate(["?e%s fb:type.object.name ?name." %(t_idx+1), "FILTER (datatype(?e%s) in (xsd:date, xsd:gYear))" %(t_idx+1), "VALUES ?r {%s}" %(' '.join(special1hoprel))]): #
         '''If const1_idx > 1, consider the name-mentioned relation'''
         if const1_idx > 1: const = ""
-        sparql_txt = """PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT %s WHERE {%s\n%s\n%s}""" %(retu, const, const1, trips) # Q: the order of the query matters ?!
-        #print(sparql_txt)
+        sparql_txt = """PREFIX fb:<fb2m:>\nSELECT %s WHERE {%s\n%s\n%s}""" %(retu, const, const1, trips) # Q: the order of the query matters ?!
         sparql = SPARQLWrapper(SPARQLPATH)
         sparql.setQuery(sparql_txt)
         sparql.setReturnFormat(JSON)
+        
         try:
             if (QUERY is not None) and sparql_txt in QUERY: return kbs, sparql_txts
             results = sparql.query().convert()
             #print(len(results['results']['bindings']))
             if results['results']['bindings']:
                 for t in results['results']['bindings']:
-                    r = t['r']['value'].split('/ns/')[-1] if re.search('^http', t['r']['value']) else t['r']['value']
-                    t = t['e%s' %(t_idx+1)]['value'].split('/ns/')[-1] if re.search('^http', t['e%s' %(t_idx+1)]['value']) else t['e%s' %(t_idx+1)]['value']
+                    r = t['r']['value'].split('/fb/')[-1] if re.search('^http', t['r']['value']) else t['r']['value']
+                    t = t['e%s' %(t_idx+1)]['value'].split('/fb/')[-1] if re.search('^http', t['e%s' %(t_idx+1)]['value']) else t['e%s' %(t_idx+1)]['value']
                     trip = ((p[0][0], r, '?e%s' %(t_idx+1)), ) if t_idx == 0 else (('?e%s' %t_idx, r, '?e%s' %(t_idx+1)), )
                     kbs[trip].add(t)
             sparql_txts.add(sparql_txt)
@@ -303,8 +304,8 @@ def SQL_2hop(p, QUERY=None):
     trips = '.\n'.join(query) if t_idx == 0 else '.\n'.join(trips + query)
     retu = ', '.join(['?r', '?r1', '?e%s' %(t_idx+2)])
     const = "FILTER (?e%s!=%s)\nFILTER (!isLiteral(?e%s) OR lang(?e%s) = '' OR langMatches(lang(?e%s), 'en'))." %((t_idx+2, topic)+(t_idx+2, )*3)
-    const1 = "MINUS {?d%s ns:type.object.name ?name.}." %(t_idx+1)
-    sparql_txt = """PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT %s WHERE {%s\n%s\n%s}""" %(retu, const, const1, trips)
+    const1 = "MINUS {?d%s fb:type.object.name ?name.}." %(t_idx+1)
+    sparql_txt = """PREFIX fb:<fb2m:>\nSELECT %s WHERE {%s\n%s\n%s}""" %(retu, const, const1, trips)
     #print(sparql_txt)
     sparql = SPARQLWrapper(SPARQLPATH)
     sparql.setQuery(sparql_txt)
@@ -330,7 +331,7 @@ def SQL_1hop_reverse(p, const_entities, QUERY=None):
     raw_trips, t_idx, d_idx = form_trips(p)
     if re.search('^[mg]\.', list(const_entities)[0]):
         const_type = 'mid'
-        const_entiti = ['ns:%s' %e for e in const_entities]
+        const_entiti = ['fb:%s' %e for e in const_entities]
         const = "VALUES ?e%s {%s}" %(t_idx+1, ' '.join(sorted(const_entiti)))
         queries = [(' '.join(['?e%s' %(t_idx+1), '?r', '?e%s' %t_idx]), ), (' '.join(['?e%s' %(t_idx+1), '?r', '?d%s' %d_idx]), )] if d_idx else [(' '.join(['?e%s' %(t_idx+1), '?r', '?e%s' %t_idx]), )]
         #queries = [(' '.join(['?e%s' %t_idx, '?r', '?e%s' %(t_idx+1)]), ), (' '.join(['?d%s' %d_idx, '?r', '?e%s' %(t_idx+1)]), )] if d_idx else [(' '.join(['?e%s' %t_idx, '?r', '?e%s' %(t_idx+1)]), )]
@@ -352,14 +353,14 @@ def SQL_1hop_reverse(p, const_entities, QUERY=None):
         queries = [(' '.join(['?e%s' %t_idx, '?r', '?e%s' %(t_idx+1)]), ), (' '.join(['?d%s' %d_idx, '?r', '?e%s' %(t_idx+1)]), )] if d_idx else [(' '.join(['?e%s' %t_idx, '?r', '?e%s' %(t_idx+1)]), )]
     elif list(const_entities)[0] in ['daughter', 'son']:
         const_type = list(const_entities)[0]
-        const = "VALUES ?e%s {ns:m.05zppz}" %(t_idx+1) if const_type in ['son'] else "VALUES ?e%s {ns:m.02zsn}" %(t_idx+1)
+        const = "VALUES ?e%s {fb:m.05zppz}" %(t_idx+1) if const_type in ['son'] else "VALUES ?e%s {fb:m.02zsn}" %(t_idx+1)
         queries = [(' '.join(['?e%s' %t_idx, '?r', '?e%s' %(t_idx+1)]), ), (' '.join(['?d%s' %d_idx, '?r', '?e%s' %(t_idx+1)]), )] if d_idx else [(' '.join(['?e%s' %t_idx, '?r', '?e%s' %(t_idx+1)]), )]
     else:
         raise Exception('SQL_1hop_reverse has wrong constraint format %s' %str(const_entities))
     for q_idx, query in enumerate(queries):
         trips = '.\n'.join(raw_trips + query)
         retu = ', '.join(['?e%s' %(t_idx+1), '?r', '?e%s' %t_idx])
-        sparql_txt = """PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT DISTINCT %s WHERE {%s\n%s}%s""" %(retu, trips, const, const1)
+        sparql_txt = """PREFIX fb:<fb2m:>\nSELECT DISTINCT %s WHERE {%s\n%s}%s""" %(retu, trips, const, const1)
         #print(sparql_txt)
         sparql = SPARQLWrapper(SPARQLPATH)
         sparql.setQuery(sparql_txt)
@@ -393,19 +394,19 @@ def SQL_2hop_reverse(p, const_entities, QUERY=None):
     raw_trips, t_idx, d_idx = form_trips(p)
     if re.search('^[mg]\.', list(const_entities)[0]):
         const_type = 'mid'
-        const_entiti = ['ns:%s' %e for e in const_entities]
+        const_entiti = ['fb:%s' %e for e in const_entities]
         const = "VALUES ?e%s {%s}" %(t_idx+2, ' '.join(sorted(const_entiti)))
         if d_idx:
-            queries = [('?d%s ?r ?e%s' %(t_idx+1, t_idx), '?e%s ?r2 ?d%s' %(t_idx+2, t_idx+1), 'MINUS {?d%s ns:type.object.name ?name.}.' %(t_idx+1))]
-            queries += [('?d%s ?r ?d%s' %(t_idx+1, d_idx), '?e%s ?r2 ?d%s' %(t_idx+2, t_idx+1), 'MINUS {?d%s ns:type.object.name ?name.}.' %(t_idx+1))]
+            queries = [('?d%s ?r ?e%s' %(t_idx+1, t_idx), '?e%s ?r2 ?d%s' %(t_idx+2, t_idx+1), 'MINUS {?d%s fb:type.object.name ?name.}.' %(t_idx+1))]
+            queries += [('?d%s ?r ?d%s' %(t_idx+1, d_idx), '?e%s ?r2 ?d%s' %(t_idx+2, t_idx+1), 'MINUS {?d%s fb:type.object.name ?name.}.' %(t_idx+1))]
         else:
-            queries = [('?d%s ?r ?e%s' %(t_idx+1, t_idx), '?e%s ?r2 ?d%s' %(t_idx+2, t_idx+1), 'MINUS {?d%s ns:type.object.name ?name.}.' %(t_idx+1))]
+            queries = [('?d%s ?r ?e%s' %(t_idx+1, t_idx), '?e%s ?r2 ?d%s' %(t_idx+2, t_idx+1), 'MINUS {?d%s fb:type.object.name ?name.}.' %(t_idx+1))]
     else:
         raise Exception('SQL_2hop_reverse has wrong constraint format %s' %str(const_entities))
     for q_idx, query in enumerate(queries):
         trips = '.\n'.join(raw_trips + query)
         retu = '?e%s, ?r2, ?r, ?e%s' %(t_idx+2, t_idx)
-        sparql_txt = """PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT DISTINCT %s WHERE {%s\n%s}%s""" %(retu, trips, const, const1)
+        sparql_txt = """PREFIX fb:<fb2m:>\nSELECT DISTINCT %s WHERE {%s\n%s}%s""" %(retu, trips, const, const1)
         #print(sparql_txt)
         sparql = SPARQLWrapper(SPARQLPATH)
         sparql.setQuery(sparql_txt)
@@ -429,12 +430,12 @@ def SQL_2hop_reverse(p, const_entities, QUERY=None):
 def SQL_1hop_type(p, const_entities, QUERY=None):
     kbs, sparql_txts = defaultdict(set), set()
     raw_trips, t_idx, _ = form_trips(p)
-    const_entiti = ['ns:%s' %e for e in const_entities]
-    query = (' '.join(['?e%s' %t_idx, 'ns:common.topic.notable_types', '?e%s' %(t_idx+1)]), )
+    const_entiti = ['fb:%s' %e for e in const_entities]
+    query = (' '.join(['?e%s' %t_idx, 'fb:common.topic.notable_types', '?e%s' %(t_idx+1)]), )
     trips = '.\n'.join(raw_trips + query)
     retu = ', '.join(['?e%s' %t_idx, '?e%s' %(t_idx+1)])
     const = "VALUES ?e%s {%s}" %(t_idx+1, ' '.join(sorted(const_entiti)))
-    sparql_txt = """PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT %s WHERE {%s\n%s}""" %(retu, const, trips)
+    sparql_txt = """PREFIX fb:<fb2m:>\nSELECT %s WHERE {%s\n%s}""" %(retu, const, trips)
     sparql = SPARQLWrapper(SPARQLPATH)
     sparql.setQuery(sparql_txt)
     sparql.setReturnFormat(JSON)
@@ -455,7 +456,7 @@ def retrieve_answer(p):
     trips, t_idx, _ = form_trips(p)
     retu = '?e%s' %(t_idx)
     trips = '.\n'.join(trips)
-    sparql_txt = """PREFIX ns:<http://rdf.freebase.com/ns/>\nSELECT %s WHERE {%s}""" %(retu, trips)
+    sparql_txt = """PREFIX fb:<fb2m:>\nSELECT %s WHERE {%s}""" %(retu, trips)
     # print(sparql_txt)
     sparql = SPARQLWrapper(SPARQLPATH)
     sparql.setQuery(sparql_txt)

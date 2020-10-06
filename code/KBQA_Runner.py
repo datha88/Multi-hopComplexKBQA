@@ -120,7 +120,7 @@ def create_instances(input_file, tokenizer):
             for line_idx, line in enumerate(f):
                 line = line.strip()
                 g = re.split('\t| ', line)
-                if input_file.split('_')[-1] in ['WBQ', 'CWQ']: g = [w for w in g if not re.search('^\?', w)]
+                if input_file.split('_')[-1] in ['WBQ', 'CWQ', 'SQ']: g = [w for w in g if not re.search('^\?', w)]
                 golden_graphs.append(tuple(g))
 
     instances = []
@@ -132,7 +132,6 @@ def create_instances(input_file, tokenizer):
                                         constraint=constraints[q_idx],
                                         answer=answers[q_idx],
                                         golden_graph=golden_graphs[q_idx] if golden_graphs else ()))
-
     return instances
 
 def Load_KB_Files(KB_file):
@@ -191,6 +190,7 @@ def check_answer(raw_answer):
 
 def retrieve_KB(batch, KB, QUERY, M2N, tokenizer, method, train_limit_number=1000, time = 0, is_train = False, save_model='SO'):
     '''Retrieve subgraphs from the KB based on current topic entities'''
+
     te, c_te, hn = batch.topic_entity, batch.current_topic_entity, batch.hop_number
     raw_candidate_paths, paths, batch.orig_F1s ={}, {}, []
     hn_mark, query_num = 0, 0
@@ -202,6 +202,9 @@ def retrieve_KB(batch, KB, QUERY, M2N, tokenizer, method, train_limit_number=100
         raw_paths, queries = {}, set()
         if previous_path in KB:
             paths = KB[previous_path]
+        '''if tokenizer.dataset in ['SQ'] and (len(paths) == 0 and time==0):
+            path, query = SQL_1hop(previous_path, QUERY=QUERY)
+            if query:  raw_paths.update(path); QUERY.update(query); query_num += 1 #QUERY_save.update(query) #'''
         if time:
             if tokenizer.dataset in ['CWQ'] and time < 2: #(tokenizer.dataset in ['CWQ'] and time < 2) or (len(paths) == 0 and time==0): #(tokenizer.dataset in ['CWQ'] and time < 2) or
                 ''' Single hop relations, remove this when WBQ '''
@@ -241,7 +244,7 @@ def retrieve_KB(batch, KB, QUERY, M2N, tokenizer, method, train_limit_number=100
     max_cp_length, types = 0, []
     limit_number = train_limit_number
     for p_idx, p in enumerate(raw_candidate_paths):
-        CWQ_F1 = generate_F1_tmp(clean_answer(raw_candidate_paths[p]), batch.answer) if tokenizer.dataset in ['CWQ', 'WBQ'] else 0.
+        CWQ_F1 = generate_F1_tmp(clean_answer(raw_candidate_paths[p]), batch.answer) if tokenizer.dataset in ['CWQ', 'WBQ', 'SQ'] else 0.
         if (not is_train) or (np.random.random() < (limit_number*1./len(raw_candidate_paths))) or CWQ_F1 > 0.5:
             '''If answer equals to topic entities'''
             if raw_candidate_paths[p] == set([p[0][0]]) or not check_answer(raw_candidate_paths[p]): continue #
@@ -569,9 +572,36 @@ def main():
     save_query_cache = os.path.join(os.path.dirname(args.QUERY_file), "query_cache.json")
 
     tokenizer = Tokenizer(args.vocab_file)
-    KB = {} if args.do_eval == 2 else convert_json_to_load(Load_KB_Files(args.KB_file)) if args.KB_file else None
-    M2N = {} if args.do_eval == 2 else Load_KB_Files(args.M2N_file)
-    QUERY = set() if args.do_eval == 2 else set(Load_KB_Files(args.QUERY_file))
+    #KB = {} if args.do_eval == 2 elif args.do_eval == 1 convert_json_to_load(Load_KB_Files(args.KB_file)) if args.KB_file else None
+    if args.do_eval == 2:
+        KB = {}
+    elif args.do_eval == 1:
+        if os.path.getsize(args.KB_file) > 0:
+            KB = convert_json_to_load(Load_KB_Files(args.KB_file))
+        else: 
+            KB ={}
+    else:
+        KB ={}
+    #M2N = {} if args.do_eval == 2 else Load_KB_Files(args.M2N_file)
+    if args.do_eval == 2:
+        M2N = {}
+    elif args.do_eval == 1:
+        if os.path.getsize(args.KB_file) > 0:
+            M2N = Load_KB_Files(args.M2N_file)
+        else: 
+            M2N ={}
+    else:
+        M2N ={}
+    #QUERY = set() if args.do_eval == 2 else set(Load_KB_Files(args.QUERY_file))
+    if args.do_eval == 2:
+        QUERY = set()
+    elif args.do_eval == 1:
+        if os.path.getsize(args.KB_file) > 0:
+            QUERY = Load_KB_Files(args.M2N_file)
+        else: 
+            QUERY = set()
+    else:
+        QUERY = set()
 
     config = ModelConfig.from_json_file(args.config)
     policy = Policy(config, tokenizer.vocab, device)
@@ -593,6 +623,14 @@ def main():
         policy.to(device)
 
     global_step, max_eval_reward, t_total = 0, -0.1, 0
+    if args.do_train:
+        train_instances = create_instances(input_file=args.train_folder,
+                                           tokenizer=tokenizer)
+        logger.info("***** Loading training ******")
+        logger.info("    Num examples = %d" , len(train_instances))
+        logger.info("    Batch size = %s", args.train_batch_size)
+        t_total = len(train_instances)*args.num_train_epochs
+
     if args.do_eval:
         dev_instances = create_instances(input_file=args.dev_folder,
                                           tokenizer=tokenizer)
@@ -602,13 +640,7 @@ def main():
         logger.info("   Num dev examples = %d", len(dev_instances))
         logger.info("   Num test examples = %d", len(test_instances))
         logger.info("   Batch size = %s", args.eval_batch_size)
-    if args.do_train:
-        train_instances = create_instances(input_file=args.train_folder,
-                                           tokenizer=tokenizer)
-        logger.info("***** Loading training ******")
-        logger.info("    Num examples = %d" , len(train_instances))
-        logger.info("    Batch size = %s", args.train_batch_size)
-        t_total = len(train_instances)*args.num_train_epochs
+    
 
     # Prepare optimizer
     # param_optimizer = list(policy.named_parameters())
@@ -627,8 +659,9 @@ def main():
     #te_idx = json.load(open('data/train_CWQ/te_idx.json', 'r'))
 
     args.num_train_epochs = 1 if not args.do_train else args.num_train_epochs
+    
     for epoch in trange(int(args.num_train_epochs), desc="Epoch"):
-
+        print(epoch)
         tr_loss, tr_LM_loss, tr_reward, tr_reward_boundary, hop1_tr_reward, nb_tr_examples, nb_tr_steps, query_num = 0., 0., 0., 0., 0, 0, 0, 0.
         if args.do_train:
             policy.train()
@@ -648,9 +681,11 @@ def main():
                                     config.method, train_limit_number=args.train_limit_number, time = time, is_train=True,
                                     save_model=args.save_model)
                     query_num += qr_n
-
+                
                     if len(cp) == 0: skip_forward = True; break # When there is no candidate paths for the question, skip
+                    
                     ready_batch = select_field(batch.question, cp, ts, tn, ty_n, su_n, ye_n, an_n, hn, RAs, mcl, is_train=True, method=config.method, save_model=args.save_model)
+                    
                     if args.gpu_id: ready_batch = tuple(t.to(device) for t in ready_batch)
 
                     # Step through environment using chosen action
@@ -661,6 +696,7 @@ def main():
                     F1s = torch.tensor(batch.F1s, dtype=torch.float).view(1, -1)
                     if args.gpu_id: _adjust_F1s, _F1s = adjust_F1s.to(device), F1s.to(device)
                     if torch.isnan(_logits).any() or (_logits.size()!= _adjust_F1s.size()): skip_forward = True; break # When there is a bug, skip
+
                     _action, _adjust_loss = select_action(policy, _logits, adjust_F1s = _adjust_F1s,
                                                           previous_action_num = batch.previous_action_num,
                                                           is_train=True, time = time, is_reinforce=args.do_policy_gradient,
@@ -669,12 +705,14 @@ def main():
                     action = _action.cpu().data.numpy() if args.gpu_id else _action.data.numpy()
                     eval_metric = 'GraphAcc' if (time==0 and tokenizer.dataset in ['CWQ']) else 'AnsAcc' if (tokenizer.dataset in ['FBQ']) else 'F1Text' if (tokenizer.dataset in ['CQ']) else 'F1'
                     reward, _, done, _, _ = generate_F1(logits, action, batch, time = time, is_train=True, eval_metric=eval_metric, M2N=M2N)
-                    if time== 0 and tokenizer.dataset in ['CWQ']: hop1_tr_reward += np.mean(reward)
+                    if time== 0 and tokenizer.dataset in ['CWQ', 'SQ']: hop1_tr_reward += np.mean(reward)
                     update_train_instance(batch, action)
 
                     # Save reward
                     policy.reward_episode.append(reward)
+                
                     if done: break # When the best path in the previous iteration is same as the best path in current iteration
+                    
                     time += 1
                 #if np.max(batch.orig_F1s) > reward: print(np.max(batch.orig_F1s)); print(reward); exit()
                 # Used to determine when the environment is solved.
@@ -698,11 +736,11 @@ def main():
 
                 if (step + 1) % 5000 == 0:
                     print('trained %s instances ...' %step)
-                    # model_to_save = policy.module if hasattr(policy, 'module') else policy
-                    # torch.save(model_to_save.state_dict(), save_model_file)
-                    # Save_KB_Files(convert_json_to_save(KB), save_kb_cache)
-                    # Save_KB_Files(M2N, save_m2n_cache)
-                    # Save_KB_Files(list(QUERY), save_query_cache)
+                    model_to_save = policy.module if hasattr(policy, 'module') else policy
+                    torch.save(model_to_save.state_dict(), save_model_file)
+                    Save_KB_Files(convert_json_to_save(KB), save_kb_cache)
+                    Save_KB_Files(M2N, save_m2n_cache)
+                    Save_KB_Files(list(QUERY), save_query_cache)
 
         if args.do_eval:
             policy.eval()
@@ -734,6 +772,7 @@ def main():
                     update_train_instance(batch, action)
 
                     if done: break
+                    
                     time += 1
 
                 if not skip_forward:
@@ -745,8 +784,8 @@ def main():
             result = {'training loss': tr_loss/np.max([nb_tr_examples, 1.e-10]),
                       'training reward': tr_reward/np.max([nb_tr_examples, 1.e-10]),
                       'dev reward': eval_reward/np.max([nb_eval_examples, 1.e-10])}
-            if tokenizer.dataset in ['CWQ', 'WBQ', 'CQ']: result['train reward boundary'] = tr_reward_boundary/np.max([nb_tr_examples, 1.e-10])
-            if tokenizer.dataset in ['CWQ']: result['training hop1 acc'] = hop1_tr_reward/np.max([nb_tr_examples, 1.e-10])
+            if tokenizer.dataset in ['CWQ', 'WBQ', 'CQ','SQ']: result['train reward boundary'] = tr_reward_boundary/np.max([nb_tr_examples, 1.e-10])
+            if tokenizer.dataset in ['CWQ','SQ']: result['training hop1 acc'] = hop1_tr_reward/np.max([nb_tr_examples, 1.e-10])
             if 'LM' in config.method: result['training LM loss'] = tr_LM_loss/np.max([nb_tr_examples, 1.e-10])
             eval_reward = eval_reward/np.max([nb_eval_examples, 1.e-10])
 
@@ -758,6 +797,7 @@ def main():
                 for eval_step, batch in enumerate(test_instances): #[328:329]
                     done, skip_forward, pred_cp = False, False, ''
                     time, reward, top_pred_ans = 0, [0], defaultdict(int)
+                    pred_ans = defaultdict(int)
                     #print(eval_step)
                     while time < args.max_hop_num:
                         time1 = mytime.time()
@@ -767,6 +807,7 @@ def main():
                         if len(cp) == 0:
                             skip_forward = True
                             break
+                        
                         ready_batch = select_field(batch.question, cp, ts, tn, ty_n, su_n, ye_n, an_n, hn, RAs, mcl, method=config.method)
                         if args.gpu_id: ready_batch = tuple(t.to(device) for t in ready_batch)
 
@@ -780,16 +821,17 @@ def main():
 
                         _action, _ = select_action(policy, _logits, is_train=False, k=args.top_k, dataset=tokenizer.dataset) # adjust_F1s = _adjust_F1s,  if time < 2 else None
                         action = _action.cpu().data.numpy() if args.gpu_id else _action.data.numpy()
-                        eval_metric = 'AnsAcc' if (tokenizer.dataset in ['FBQ']) else 'F1Text' if (tokenizer.dataset in ['CQ']) else 'Hits1' if (tokenizer.dataset in ['CWQ']) else 'F1'
+                        eval_metric = 'AnsAcc' if (tokenizer.dataset in ['FBQ']) else 'F1Text' if (tokenizer.dataset in ['CQ']) else 'Hits1' if (tokenizer.dataset in ['CWQ']) else 'F1' if (tokenizer.dataset in ['SQ']) else 'F1'
                         reward, pred_cp, done, pred_ans, top_pred_ans = generate_F1(logits, action, batch, time = time, is_train = False, eval_metric=eval_metric, M2N=M2N, top_pred_ans=top_pred_ans)
                         update_train_instance(batch, action)
                         if done: break
+                        
                         time += 1
                     #if len(pred_cp.split(' ')) < 2: print(eval_step); exit()
                     eval_pred_cps += [re.sub('\n', '', '%s\t%s\t%s\t%s' %(eval_step+1, pred_cp, reward, '\t'.join(pred_ans)))]
                     eval_pred_top_ans += [top_pred_ans]
                     #print(top_pred_ans)
-
+                    
                     if not skip_forward:
                         #if np.max(batch.orig_F1s) > np.mean(reward): print(batch.orig_F1s); print(reward); print(eval_step); exit()
                         eval_reward += np.mean(reward)
@@ -798,11 +840,11 @@ def main():
                         nb_eval_steps += 1
                     batch.reset()
                     #print('max reward', np.max(batch.orig_F1s), '\n')
-
+                
                 result['test reward'] = eval_reward/np.max([nb_eval_examples, 1.e-10])
                 result['query times'] = '%s (save model) ' %(query_num)
                 if args.do_eval == 2: print(result); exit()
-                if tokenizer.dataset in ['CWQ', 'WBQ', 'CQ']: result['test reward boundary'] = eval_reward_boundary/np.max([nb_eval_examples, 1.e-10])
+                if tokenizer.dataset in ['CWQ', 'WBQ', 'CQ','SQ']: result['test reward boundary'] = eval_reward_boundary/np.max([nb_eval_examples, 1.e-10])
                 g = open(save_eval_cp_file, "w")
                 g.write('\n'.join(eval_pred_cps))
                 g.close()
@@ -828,5 +870,6 @@ def main():
                     logger.info(" %s=%s", key, str(result[key]))
                     writer.write("%s=%s \n" %(key, str(result[key])))
             #exit()
+        
 if __name__ == '__main__':
     main()
