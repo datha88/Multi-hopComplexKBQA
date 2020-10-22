@@ -16,7 +16,8 @@ def evaluation(data_path, file):
     with open('data/test_%s/a.txt'%folder) as f:
         for line_idx, line in enumerate(f):
             a += [line.strip().lower().split('\t')]
-
+    output_dir='./results/'
+    out_f = open(os.path.join(output_dir, 'error_analysis.txt'), 'w')
     accuracies, precisions, recalls, F1s, hit1s = [], [], [], [], []
     with open(os.path.join(data_path, '%s_predcp.txt' %file)) as f:
         for line_idx, line in enumerate(f):
@@ -27,7 +28,13 @@ def evaluation(data_path, file):
                 ans = set(line.split('\t')[3:])
             else:
                 ans = set([])
+            if line_idx == 1:
+                print(ans, set(a[line_idx]))
             acc, precision, recall, F1, hit1 = generate_evaluation_tmp(ans, set(a[line_idx]))
+            out_f.write(" %%%% {}\t{}\t{}\t{}\n".format(line_idx, ans, set(a[line_idx]), F1 ))
+            if line_idx == 1:
+                print(ans, set(a[line_idx]))
+                print(acc, precision, recall, F1, hit1)
             #print(ans, a[line_idx], F1)
             #if line_idx == 77: print(F1); exit()
             accuracies += [acc]
@@ -35,7 +42,7 @@ def evaluation(data_path, file):
             recalls += [recall]
             F1s += [F1]
             hit1s += [hit1]
-
+    out_f.close()   
     return np.mean(hit1s), np.mean(accuracies), np.mean(precisions), np.mean(recalls), np.mean(F1s)
 
 def loop_evaluation(data_path, file):
@@ -43,7 +50,7 @@ def loop_evaluation(data_path, file):
     for _ in range(1):
         hit1s, accuracies, precisions, recalls, F1s = evaluation(data_path, file)
         if hit1s > max_hit1:
-            max_hit1, max_accuracy, max_precision, max_recall, max_F1 = hit1s, accuracies, precisions, recalls, F1s
+            max_hit1, max_accuracy, max_precision, max_recall, max_F1 = hit1s, accuracies*100, precisions, recalls, F1s
     print('Hit@1: %s\nAccuracy: %s\nPrecision: %s\nRecall: %s\nF1s: %s' %(max_hit1, max_accuracy, max_precision, max_recall, max_F1))
 
 
