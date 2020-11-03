@@ -8,7 +8,7 @@ python code/KBQA_Runner.py  \
         --QUERY_file data/SQ/query_cache.json \
         --output_dir trained_model/SQ \
         --config config/bert_config.json \
-        --gpu_id 3\
+        --gpu_id 2\
         --save_model Best \
         --max_hop_num 1 \
         --num_train_epochs 100 \

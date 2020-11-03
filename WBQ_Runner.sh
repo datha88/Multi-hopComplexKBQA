@@ -8,11 +8,12 @@ python code/KBQA_Runner.py  \
         --QUERY_file data/WBQ/query_cache.json \
         --output_dir trained_model/WBQ \
         --config config/bert_config.json \
-        --gpu_id 2\
-        --load_model trained_model/WBQ/Best \
+        --gpu_id 1\
         --save_model Best \
-        --max_hop_num 2 \
-        --num_train_epochs 50 \
-        --do_train 0 \
-        --do_eval 2\
+        --max_hop_num 1 \
+        --num_train_epochs 1 \
+        --do_train 1 \
+        --do_eval 1\
         --do_policy_gradient 1\
+        --learning_rate 1e-5 \
+        --train_limit_number 150 \

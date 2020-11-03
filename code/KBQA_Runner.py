@@ -134,11 +134,17 @@ def create_instances(input_file, tokenizer):
                                         golden_graph=golden_graphs[q_idx] if golden_graphs else ()))
     return instances
 
+def file_is_empty(path):
+    return os.stat(path).st_size==0
+
 def Load_KB_Files(KB_file):
     """Load knowledge base related files.
     KB_file: {ent: {rel: {ent}}}; M2N_file: {mid: name}; QUERY_file: set(queries)
     """
-    KB = json.load(open(KB_file, "r"))
+    if file_is_empty(KB_file):
+        KB = {}
+    else:
+        KB = json.load(open(KB_file, "r"))
     return KB
 
 def Save_KB_Files(KB, KB_file):
@@ -190,7 +196,7 @@ def check_answer(raw_answer):
 
 def retrieve_KB(batch, KB, QUERY, M2N, tokenizer, method, train_limit_number=1000, time = 0, is_train = False, save_model='SO'):
     '''Retrieve subgraphs from the KB based on current topic entities'''
-
+    
     te, c_te, hn = batch.topic_entity, batch.current_topic_entity, batch.hop_number
     raw_candidate_paths, paths, batch.orig_F1s ={}, {}, []
     hn_mark, query_num = 0, 0
@@ -202,17 +208,20 @@ def retrieve_KB(batch, KB, QUERY, M2N, tokenizer, method, train_limit_number=100
         raw_paths, queries = {}, set()
         if previous_path in KB:
             paths = KB[previous_path]
-        '''if tokenizer.dataset in ['SQ'] and (len(paths) == 0 and time==0):
+        if tokenizer.dataset in ['SQ','WBQ'] and (len(paths) == 0 and time==0):
             path, query = SQL_1hop(previous_path, QUERY=QUERY)
-            if query:  raw_paths.update(path); QUERY.update(query); query_num += 1 #QUERY_save.update(query) #'''
+            if query:  raw_paths.update(path); QUERY.update(query); query_num += 1 #QUERY_save.update(query) #
+            #print(path)'''
+
         if time:
-            if tokenizer.dataset in ['CWQ'] and time < 2: #(tokenizer.dataset in ['CWQ'] and time < 2) or (len(paths) == 0 and time==0): #(tokenizer.dataset in ['CWQ'] and time < 2) or
+            #if tokenizer.dataset in ['CWQ'] and time < 2: #(tokenizer.dataset in ['CWQ'] and time < 2) or (len(paths) == 0 and time==0): #(tokenizer.dataset in ['CWQ'] and time < 2) or
+            if tokenizer.dataset in ['CWQ', 'WBQ', 'SQ'] and time < 2: 
                 ''' Single hop relations, remove this when WBQ '''
                 path, query = SQL_1hop(previous_path, QUERY=QUERY)
                 if query:  raw_paths.update(path); QUERY.update(query); query_num += 1 #QUERY_save.update(query) #
                 ''' 2 hop relations, remove this when WBQ'''
-                path, query = SQL_2hop(previous_path, QUERY=QUERY)
-                if query:  raw_paths.update(path); QUERY.update(query); query_num += 1 #QUERY_save.update(query)
+                '''path, query = SQL_2hop(previous_path, QUERY=QUERY)
+                if query:  raw_paths.update(path); QUERY.update(query); query_num += 1 #QUERY_save.update(query)'''
         if time:
             ''' Constraint relations via entities, time, min max'''
             overlap_te = set([mid for mid in te if te[mid][1] == te[previous_path[0][0]][1]]) if tokenizer.dataset in ['CQ'] else set([mid for mid in sum(previous_path, ()) if re.search('^[mg]\.', mid)]) #
@@ -232,9 +241,12 @@ def retrieve_KB(batch, KB, QUERY, M2N, tokenizer, method, train_limit_number=100
             if len(const) and query:  raw_paths.update(path); QUERY.update(query); query_num += 1 #QUERY_save.update(query) #
             if time:
                 for raw_path in copy.deepcopy(raw_paths): raw_paths[previous_path + raw_path] = raw_paths.pop(raw_path)
+        
         for raw_path in raw_paths: update_hierarchical_dic_with_set(KB, previous_path, raw_path, raw_paths[raw_path])
+        #print('Length raw_paths',len(raw_paths), raw_paths)
         if len(raw_paths) == 0 and (previous_path not in KB): KB[previous_path] = raw_paths
         paths.update(raw_paths)
+        #print('Paths',paths)
         for raw_path in paths:
             path = raw_path
             update_raw_candidate_paths(path, paths[raw_path], previous_path, raw_candidate_paths, batch, time)
@@ -243,8 +255,11 @@ def retrieve_KB(batch, KB, QUERY, M2N, tokenizer, method, train_limit_number=100
     candidate_paths, topic_scores, topic_numbers, answer_numbers, type_numbers, superlative_numbers, year_numbers, hop_numbers, F1s, RAs = [], [], [], [], [], [], [], [], [], []
     max_cp_length, types = 0, []
     limit_number = train_limit_number
+    
+    
     for p_idx, p in enumerate(raw_candidate_paths):
         CWQ_F1 = generate_F1_tmp(clean_answer(raw_candidate_paths[p]), batch.answer) if tokenizer.dataset in ['CWQ', 'WBQ', 'SQ'] else 0.
+        
         if (not is_train) or (np.random.random() < (limit_number*1./len(raw_candidate_paths))) or CWQ_F1 > 0.5:
             '''If answer equals to topic entities'''
             if raw_candidate_paths[p] == set([p[0][0]]) or not check_answer(raw_candidate_paths[p]): continue #
@@ -276,6 +291,7 @@ def retrieve_KB(batch, KB, QUERY, M2N, tokenizer, method, train_limit_number=100
                             path.append(w); year_number += 1.
                         else:
                             skip = True
+            
             if skip: continue
             if check_answer(raw_candidate_paths[p]) == 2: path.append('date')
             batch.candidate_paths += [p]
@@ -324,6 +340,7 @@ def retrieve_KB(batch, KB, QUERY, M2N, tokenizer, method, train_limit_number=100
     batch.current_F1s /= np.sum(batch.current_F1s)
     batch.F1s /= np.sum(batch.F1s)
     stop = True if (len(candidate_paths) and time > 0) else False
+    #print('Stop', stop)
     return candidate_paths, topic_scores, topic_numbers, type_numbers, superlative_numbers, year_numbers, answer_numbers, hop_numbers, RAs, max_cp_length, query_num, stop
 
 def select_field(q, cp, ts, tn, ty_n, su_n, ye_n, an_n, hn, RAs, mcl, is_train=False, method='Bert', save_model='SO'):
@@ -572,36 +589,13 @@ def main():
     save_query_cache = os.path.join(os.path.dirname(args.QUERY_file), "query_cache.json")
 
     tokenizer = Tokenizer(args.vocab_file)
+    KB = {} if args.do_eval == 2 else convert_json_to_load(Load_KB_Files(args.KB_file)) if args.KB_file else None
+    M2N = {} if args.do_eval == 2 else Load_KB_Files(args.M2N_file)
+    QUERY = set() if args.do_eval == 2 else set(Load_KB_Files(args.QUERY_file))
+
     #KB = {} if args.do_eval == 2 elif args.do_eval == 1 convert_json_to_load(Load_KB_Files(args.KB_file)) if args.KB_file else None
-    if args.do_eval == 2:
-        KB = {}
-    elif args.do_eval == 1:
-        if os.path.getsize(args.KB_file) > 0:
-            KB = convert_json_to_load(Load_KB_Files(args.KB_file))
-        else: 
-            KB ={}
-    else:
-        KB ={}
     #M2N = {} if args.do_eval == 2 else Load_KB_Files(args.M2N_file)
-    if args.do_eval == 2:
-        M2N = {}
-    elif args.do_eval == 1:
-        if os.path.getsize(args.KB_file) > 0:
-            M2N = Load_KB_Files(args.M2N_file)
-        else: 
-            M2N ={}
-    else:
-        M2N ={}
     #QUERY = set() if args.do_eval == 2 else set(Load_KB_Files(args.QUERY_file))
-    if args.do_eval == 2:
-        QUERY = set()
-    elif args.do_eval == 1:
-        if os.path.getsize(args.KB_file) > 0:
-            QUERY = Load_KB_Files(args.M2N_file)
-        else: 
-            QUERY = set()
-    else:
-        QUERY = set()
 
     config = ModelConfig.from_json_file(args.config)
     policy = Policy(config, tokenizer.vocab, device)
@@ -661,7 +655,6 @@ def main():
     args.num_train_epochs = 1 if not args.do_train else args.num_train_epochs
     
     for epoch in trange(int(args.num_train_epochs), desc="Epoch"):
-        print(epoch)
         tr_loss, tr_LM_loss, tr_reward, tr_reward_boundary, hop1_tr_reward, nb_tr_examples, nb_tr_steps, query_num = 0., 0., 0., 0., 0, 0, 0, 0.
         if args.do_train:
             policy.train()
@@ -674,14 +667,14 @@ def main():
                 #print(step)
                 done, skip_forward = False, False
                 time, _total_losses = 0, 0
-
+                
                 while time < args.max_hop_num:
                     # Retrieve graphs based on the current graph
                     cp, ts, tn, ty_n, su_n, ye_n, an_n, hn, RAs, mcl, qr_n, done = retrieve_KB(batch, KB, QUERY, M2N, tokenizer,
                                     config.method, train_limit_number=args.train_limit_number, time = time, is_train=True,
                                     save_model=args.save_model)
                     query_num += qr_n
-                
+                    
                     if len(cp) == 0: skip_forward = True; break # When there is no candidate paths for the question, skip
                     
                     ready_batch = select_field(batch.question, cp, ts, tn, ty_n, su_n, ye_n, an_n, hn, RAs, mcl, is_train=True, method=config.method, save_model=args.save_model)
@@ -710,7 +703,7 @@ def main():
 
                     # Save reward
                     policy.reward_episode.append(reward)
-                
+                    
                     if done: break # When the best path in the previous iteration is same as the best path in current iteration
                     
                     time += 1
@@ -736,11 +729,11 @@ def main():
 
                 if (step + 1) % 5000 == 0:
                     print('trained %s instances ...' %step)
-                    model_to_save = policy.module if hasattr(policy, 'module') else policy
-                    torch.save(model_to_save.state_dict(), save_model_file)
-                    Save_KB_Files(convert_json_to_save(KB), save_kb_cache)
-                    Save_KB_Files(M2N, save_m2n_cache)
-                    Save_KB_Files(list(QUERY), save_query_cache)
+                    #model_to_save = policy.module if hasattr(policy, 'module') else policy
+                    #torch.save(model_to_save.state_dict(), save_model_file)
+                    #Save_KB_Files(convert_json_to_save(KB), save_kb_cache)
+                    #Save_KB_Files(M2N, save_m2n_cache)
+                    #Save_KB_Files(list(QUERY), save_query_cache)
 
         if args.do_eval:
             policy.eval()
@@ -755,7 +748,7 @@ def main():
                     time1 = mytime.time()
                     cp, ts, tn, ty_n, su_n, ye_n, an_n, hn, RAs, mcl, qr_n, done = retrieve_KB(batch, KB, QUERY, M2N, tokenizer, config.method, time = time)
                     query_num += qr_n
-
+                    
                     if len(cp) == 0: skip_forward = True; break
                     ready_batch = select_field(batch.question, cp, ts, tn, ty_n, su_n, ye_n, an_n, hn, RAs, mcl, method=config.method)
                     if args.gpu_id: ready_batch = tuple(t.to(device) for t in ready_batch)
